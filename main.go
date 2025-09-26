@@ -1,7 +1,9 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 )
@@ -12,21 +14,37 @@ func main() {
 		fmt.Println(err.Error())
 		return
 	}
-	var buf [8]byte
-	var line string
-	for {
-		n, err := file.Read(buf[:])
-		if err != nil {
-			break
-		}
-		parts := strings.Split(string(buf[:n]), "\n")
-		line = line + parts[0]
-		for i := 1; i < len(parts); i++ {
-			fmt.Printf("read: %s\n", line)
-			line = parts[i]
-		}
-	}
-	if len(line) > 0 {
+	c := getLinesChannel(file)
+	for line := range c {
 		fmt.Printf("read: %s\n", line)
 	}
+}
+
+func getLinesChannel(f io.ReadCloser) <-chan string {
+	out := make(chan string)
+	go func() {
+		defer f.Close()
+		defer close(out)
+		var buf [8]byte
+		var line string
+		for {
+			n, err := f.Read(buf[:])
+			if err != nil {
+				if len(line) > 0 {
+					out <- line
+				}
+				if !errors.Is(err, io.EOF) {
+					fmt.Println(err.Error())
+				}
+				break
+			}
+			parts := strings.Split(string(buf[:n]), "\n")
+			line = line + parts[0]
+			for i := 1; i < len(parts); i++ {
+				out <- line
+				line = parts[i]
+			}
+		}
+	}()
+	return out
 }
