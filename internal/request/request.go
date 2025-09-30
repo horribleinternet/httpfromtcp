@@ -60,6 +60,9 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		}
 		readToIndex += read
 		parsed, err := req.parse(buf)
+		if err != nil {
+			return nil, err
+		}
 		if req.state != done {
 			copy(buf, buf[parsed:])
 			readToIndex -= parsed
