@@ -2,6 +2,7 @@ package request
 
 import (
 	"fmt"
+	"httpfromtcp/internal/headers"
 	"io"
 	"strings"
 	"unicode"
@@ -10,15 +11,17 @@ import (
 type parseState int
 
 const (
-	done        parseState = 0
-	initialized parseState = 1
-	lineEnd                = "\r\n"
-	lineEndLen             = len(lineEnd)
-	bufferSize             = 8
+	requestStateDone           parseState = 0
+	requestStateInitialized    parseState = 1
+	requestStateParsingHeaders parseState = 2
+	lineEnd                               = "\r\n"
+	lineEndLen                            = len(lineEnd)
+	bufferSize                            = 8
 )
 
 type Request struct {
 	RequestLine RequestLine
+	Headers     headers.Headers
 	state       parseState
 }
 
@@ -29,7 +32,7 @@ type RequestLine struct {
 }
 
 func (r *Request) parse(data []byte) (int, error) {
-	if r.state == done {
+	if r.state == requestStateDone {
 		return 0, fmt.Errorf("cannot parse done request")
 	}
 	out, ReqLine, err := parseRequestLine(data)
@@ -38,7 +41,7 @@ func (r *Request) parse(data []byte) (int, error) {
 	}
 	if out > 0 {
 		r.RequestLine = ReqLine
-		r.state = done
+		r.state = requestStateDone
 	}
 	return out, nil
 }
@@ -46,9 +49,9 @@ func (r *Request) parse(data []byte) (int, error) {
 func RequestFromReader(reader io.Reader) (*Request, error) {
 	buf := make([]byte, bufferSize)
 	var req Request
-	req.state = initialized
+	req.state = requestStateInitialized
 	readToIndex := 0
-	for req.state != done {
+	for req.state != requestStateDone {
 		if readToIndex == len(buf) {
 			newbuf := make([]byte, 2*len(buf))
 			copy(newbuf, buf)
@@ -63,7 +66,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		if err != nil {
 			return nil, err
 		}
-		if req.state != done {
+		if req.state != requestStateDone {
 			copy(buf, buf[parsed:])
 			readToIndex -= parsed
 		}
