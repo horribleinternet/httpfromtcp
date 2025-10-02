@@ -227,16 +227,16 @@ func TestBodyParse(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, r)
 
-	// Test: Standard Body
+	// Test: Body longer than reported length
 	reader = &chunkReader{
 		data: "POST /submit HTTP/1.1\r\n" +
 			"Host: localhost:42069\r\n" +
+			"Content-Length: 5\r\n" +
 			"\r\n" +
 			"hello world!\n",
 		numBytesPerRead: 3,
 	}
-	r, err = RequestFromReader(reader)
-	require.NoError(t, err)
-	require.NotNil(t, r)
+	_, err = RequestFromReader(reader)
+	require.Error(t, err)
 
 }

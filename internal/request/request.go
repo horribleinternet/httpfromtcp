@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"httpfromtcp/internal/headers"
 	"io"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -14,8 +15,10 @@ const (
 	requestStateDone           parseState = 0
 	requestStateInitialized    parseState = 1
 	requestStateParsingHeaders parseState = 2
+	requestStateParsingBody    parseState = 3
 	lineEnd                               = "\r\n"
 	lineEndLen                            = len(lineEnd)
+	contentLengthFieldName     string     = "content-length"
 	bufferSize                            = 8
 )
 
@@ -77,11 +80,30 @@ func (r *Request) parseNext(data []byte) (int, error) {
 			return 0, err
 		}
 		if done {
+			r.state = requestStateParsingBody
+		}
+		return n, nil
+	case requestStateParsingBody:
+		lengthStr, err := r.Headers.Get(contentLengthFieldName)
+		if err != nil {
+			r.state = requestStateDone
+			return 0, nil
+		}
+		length, err := strconv.Atoi(lengthStr)
+		if err != nil {
+			return 0, err
+		}
+		n := len(data)
+		r.Body = append(r.Body, data...)
+		if len(r.Body) > length {
+			return n, fmt.Errorf("content length header value was %d but body is %d bytes long", length, len(r.Body))
+		} else if len(r.Body) == length {
 			r.state = requestStateDone
 		}
 		return n, nil
+	default:
+		return 0, fmt.Errorf("invalid request state %d", r.state)
 	}
-	return 0, fmt.Errorf("invalid request state %d", r.state)
 }
 
 func RequestFromReader(reader io.Reader) (*Request, error) {
@@ -99,7 +121,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 			return nil, err
 		}
 		readToIndex += read
-		parsed, err := req.parse(buf)
+		parsed, err := req.parse(buf[:readToIndex])
 		if err != nil {
 			return nil, err
 		}
