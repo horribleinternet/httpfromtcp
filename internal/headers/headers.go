@@ -22,6 +22,14 @@ func NewHeaders() Headers {
 	return Headers{}
 }
 
+func (h Headers) Get(fieldName string) (string, error) {
+	value, ok := h[strings.ToLower(fieldName)]
+	if !ok {
+		return "", fmt.Errorf("field name %s not present", fieldName)
+	}
+	return value, nil
+}
+
 func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	index := bytes.Index(data, lineEndBytes)
 	//fmt.Printf("index: %d, %s\n", index, string(data[:index]))
