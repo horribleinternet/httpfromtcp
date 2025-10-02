@@ -25,6 +25,13 @@ type Request struct {
 	state       parseState
 }
 
+func newRequest() *Request {
+	var request Request
+	request.state = requestStateInitialized
+	request.Headers = headers.NewHeaders()
+	return &request
+}
+
 type RequestLine struct {
 	HttpVersion   string
 	RequestTarget string
@@ -35,21 +42,50 @@ func (r *Request) parse(data []byte) (int, error) {
 	if r.state == requestStateDone {
 		return 0, fmt.Errorf("cannot parse done request")
 	}
-	out, ReqLine, err := parseRequestLine(data)
-	if err != nil {
-		return 0, err
+	parsedBytes := 0
+	for r.state != requestStateDone {
+		n, err := r.parseNext(data[parsedBytes:])
+		parsedBytes += n
+		if err != nil {
+			return parsedBytes, fmt.Errorf("'%v' parsing from byte %d", err, parsedBytes)
+		}
+		if n == 0 {
+			break
+		}
 	}
-	if out > 0 {
-		r.RequestLine = ReqLine
-		r.state = requestStateDone
+	return parsedBytes, nil
+}
+
+func (r *Request) parseNext(data []byte) (int, error) {
+	switch r.state {
+	case requestStateDone:
+		return 0, fmt.Errorf("cannot parse done request")
+	case requestStateInitialized:
+		n, line, err := parseRequestLine(data)
+		if err != nil {
+			return 0, err
+		}
+		if n > 0 {
+			r.RequestLine = line
+			r.state = requestStateParsingHeaders
+		}
+		return n, nil
+	case requestStateParsingHeaders:
+		n, done, err := r.Headers.Parse(data)
+		if err != nil {
+			return 0, err
+		}
+		if done {
+			r.state = requestStateDone
+		}
+		return n, nil
 	}
-	return out, nil
+	return 0, fmt.Errorf("invalid request state %d", r.state)
 }
 
 func RequestFromReader(reader io.Reader) (*Request, error) {
 	buf := make([]byte, bufferSize)
-	var req Request
-	req.state = requestStateInitialized
+	req := newRequest()
 	readToIndex := 0
 	for req.state != requestStateDone {
 		if readToIndex == len(buf) {
@@ -67,11 +103,12 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 			return nil, err
 		}
 		if req.state != requestStateDone {
-			copy(buf, buf[parsed:])
+			copied := copy(buf, buf[parsed:])
+			clear(buf[copied:])
 			readToIndex -= parsed
 		}
 	}
-	return &req, nil
+	return req, nil
 }
 
 func parseRequestLine(header []byte) (int, RequestLine, error) {

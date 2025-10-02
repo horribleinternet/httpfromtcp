@@ -133,8 +133,9 @@ func TestHeaderParse(t *testing.T) {
 	// Test: Malformed Header
 	reader = &chunkReader{
 		data:            "GET / HTTP/1.1\r\nHost localhost:42069\r\n\r\n",
-		numBytesPerRead: 3,
+		numBytesPerRead: 6,
 	}
 	_, err = RequestFromReader(reader)
 	require.Error(t, err)
+
 }
