@@ -201,7 +201,7 @@ func TestBodyParse(t *testing.T) {
 			"partial content",
 		numBytesPerRead: 3,
 	}
-	r, err = RequestFromReader(reader)
+	_, err = RequestFromReader(reader)
 	require.Error(t, err)
 
 	// Test: No body, 0 content length
