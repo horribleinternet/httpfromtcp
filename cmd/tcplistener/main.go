@@ -31,6 +31,8 @@ func main() {
 			for k, v := range req.Headers {
 				fmt.Printf("- %s: %s\n", k, v)
 			}
+			fmt.Println("Body:")
+			fmt.Println(string(req.Body))
 		}
 	}
 }
