@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"fmt"
+	"httpfromtcp/internal/headers"
 	"httpfromtcp/internal/request"
 	"httpfromtcp/internal/response"
 	"io"
@@ -75,14 +76,35 @@ func (s *Server) handle(conn net.Conn) {
 		handErr.WriteError(writer)
 		return
 	}
-	writer.WriteStatusLine(response.HTTPOk)
+	err = writer.WriteStatusLine(response.HTTPOk)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
 	header := response.GetDefaultHeaders(buffer.Len())
-	writer.WriteHeaders(header)
-	conn.Write(buffer.Bytes())
+	header.SetContextType(headers.ContentTypeTextHTML)
+	err = writer.WriteHeaders(header)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+	_, err = writer.WriteBody(buffer.Bytes())
+	if err != nil {
+		fmt.Println(err.Error())
+	}
 }
 
 func (e *HandlerError) WriteError(w *response.Writer) {
-	w.WriteStatusLine(e.Status)
-	w.WriteHeaders(response.GetDefaultHeaders(len(e.Message)))
-	w.WriteBody([]byte(e.Message))
+	err := w.WriteStatusLine(e.Status)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+	header := response.GetDefaultHeaders(len(e.Message))
+	header.SetContextType(headers.ContentTypeTextHTML)
+	err = w.WriteHeaders(header)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+	_, err = w.WriteBody([]byte(e.Message))
+	if err != nil {
+		fmt.Println(err.Error())
+	}
 }

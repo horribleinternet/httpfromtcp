@@ -20,10 +20,10 @@ const (
 	hTTPBadRequestStr                      = "Bad Request"
 	hTTPInternalServerErrorStr             = "Internal Server Error"
 	headerLineEnd                          = "\r\n"
-	writerStateStatusLine      writerState = 1
-	writerStateHeaders         writerState = 2
-	writerStateBody            writerState = 3
-	writerStateDone            writerState = 0
+	writerStateStatusLine      writerState = 0
+	writerStateHeaders         writerState = 1
+	writerStateBody            writerState = 2
+	writerStateDone            writerState = 3
 )
 
 type Writer struct {
@@ -44,7 +44,7 @@ func (w *Writer) WriteStatusLine(statusCode StatusCode) error {
 		return fmt.Errorf("calling WriteStatusLine more than once")
 	}
 	_, err := w.out.Write(formatStatusLine(statusCode))
-	if err != nil {
+	if err == nil {
 		w.state = writerStateHeaders
 	}
 	return err
@@ -75,20 +75,20 @@ func (w *Writer) WriteHeaders(headers headers.Headers) error {
 		return fmt.Errorf("calling WriteHeaders more than once")
 	}
 	_, err := w.out.Write(formatHeaders(headers))
-	if err != nil {
+	if err == nil {
 		w.state = writerStateBody
 	}
 	return err
 }
 
 func (w *Writer) WriteBody(p []byte) (int, error) {
-	if w.state < writerStateHeaders {
+	if w.state < writerStateBody {
 		return 0, fmt.Errorf("calling WriteBody before writing preceeding sections")
-	} else if w.state > writerStateHeaders {
+	} else if w.state > writerStateBody {
 		return 0, fmt.Errorf("calling WriteBody more than once")
 	}
 	n, err := w.out.Write(p)
-	if err != nil {
+	if err == nil {
 		w.state = writerStateDone
 	}
 	return n, err
