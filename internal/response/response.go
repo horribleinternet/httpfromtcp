@@ -10,22 +10,43 @@ import (
 
 type StatusCode int
 
+type writerState int
+
 const (
-	HTTPOk                     StatusCode = 200
-	HTTPBadRequest             StatusCode = 400
-	HTTPInternalServerError    StatusCode = 500
-	hTTPOkStr                             = "OK"
-	hTTPBadRequestStr                     = "Bad Request"
-	hTTPInternalServerErrorStr            = "Internal Server Error"
-	headerLineEnd                         = "\r\n"
+	HTTPOk                     StatusCode  = 200
+	HTTPBadRequest             StatusCode  = 400
+	HTTPInternalServerError    StatusCode  = 500
+	hTTPOkStr                              = "OK"
+	hTTPBadRequestStr                      = "Bad Request"
+	hTTPInternalServerErrorStr             = "Internal Server Error"
+	headerLineEnd                          = "\r\n"
+	writerStateStatusLine      writerState = 1
+	writerStateHeaders         writerState = 2
+	writerStateBody            writerState = 3
+	writerStateDone            writerState = 0
 )
+
+type Writer struct {
+	out   io.Writer
+	state writerState
+}
+
+func NewWriter(writer io.Writer) *Writer {
+	return &Writer{out: writer, state: writerStateStatusLine}
+}
 
 func formatStatusLine(statusCode StatusCode) []byte {
 	return []byte(fmt.Sprintf("HTTP/1.1 %d %s%s", statusCode, hTTPStatuses[statusCode], headerLineEnd))
 }
 
-func WriteStatusLine(w io.Writer, statusCode StatusCode) error {
-	_, err := w.Write(formatStatusLine(statusCode))
+func (w *Writer) WriteStatusLine(statusCode StatusCode) error {
+	if w.state != writerStateStatusLine {
+		return fmt.Errorf("calling WriteStatusLine more than once")
+	}
+	_, err := w.out.Write(formatStatusLine(statusCode))
+	if err != nil {
+		w.state = writerStateHeaders
+	}
 	return err
 }
 
@@ -47,9 +68,30 @@ func formatHeaders(headers headers.Headers) []byte {
 	return []byte(headerStr)
 }
 
-func WriteHeaders(w io.Writer, headers headers.Headers) error {
-	_, err := w.Write(formatHeaders(headers))
+func (w *Writer) WriteHeaders(headers headers.Headers) error {
+	if w.state < writerStateHeaders {
+		return fmt.Errorf("calling WriteHeaders before writing status line")
+	} else if w.state > writerStateHeaders {
+		return fmt.Errorf("calling WriteHeaders more than once")
+	}
+	_, err := w.out.Write(formatHeaders(headers))
+	if err != nil {
+		w.state = writerStateBody
+	}
 	return err
+}
+
+func (w *Writer) WriteBody(p []byte) (int, error) {
+	if w.state < writerStateHeaders {
+		return 0, fmt.Errorf("calling WriteBody before writing preceeding sections")
+	} else if w.state > writerStateHeaders {
+		return 0, fmt.Errorf("calling WriteBody more than once")
+	}
+	n, err := w.out.Write(p)
+	if err != nil {
+		w.state = writerStateDone
+	}
+	return n, err
 }
 
 var hTTPStatuses map[StatusCode]string

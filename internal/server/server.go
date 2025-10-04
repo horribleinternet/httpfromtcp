@@ -63,25 +63,26 @@ func (s *Server) listen() {
 func (s *Server) handle(conn net.Conn) {
 	defer conn.Close() //no net.Conn gets out alive
 	req, err := request.RequestFromReader(conn)
+	writer := response.NewWriter(conn)
 	if err != nil {
 		hErr := &HandlerError{Status: response.HTTPBadRequest, Message: err.Error()}
-		hErr.WriteError(conn)
+		hErr.WriteError(writer)
 		return
 	}
 	var buffer bytes.Buffer
 	handErr := s.handler(&buffer, req)
 	if handErr != nil {
-		handErr.WriteError(conn)
+		handErr.WriteError(writer)
 		return
 	}
-	response.WriteStatusLine(conn, response.HTTPOk)
+	writer.WriteStatusLine(response.HTTPOk)
 	header := response.GetDefaultHeaders(buffer.Len())
-	response.WriteHeaders(conn, header)
+	writer.WriteHeaders(header)
 	conn.Write(buffer.Bytes())
 }
 
-func (e *HandlerError) WriteError(w io.Writer) {
-	response.WriteStatusLine(w, e.Status)
-	response.WriteHeaders(w, response.GetDefaultHeaders(len(e.Message)))
-	w.Write([]byte(e.Message))
+func (e *HandlerError) WriteError(w *response.Writer) {
+	w.WriteStatusLine(e.Status)
+	w.WriteHeaders(response.GetDefaultHeaders(len(e.Message)))
+	w.WriteBody([]byte(e.Message))
 }

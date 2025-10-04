@@ -9,17 +9,29 @@ import (
 
 type Headers map[string]string
 
+type ContentType int
+
 const (
-	lineEndStr = "\r\n"
-	lineEndLen = len(lineEndStr)
-	sep        = ":"
-	sepLen     = len(sep)
+	lineEndStr                       = "\r\n"
+	lineEndLen                       = len(lineEndStr)
+	sep                              = ":"
+	ContentTypeTextPlain ContentType = 0
+	ContentTypeTextHTML  ContentType = 1
 )
 
 var lineEndBytes = []byte(lineEndStr)
 
 func NewHeaders() Headers {
 	return Headers{}
+}
+
+func (h Headers) SetContextType(conType ContentType) error {
+	v, ok := validContentTypes[conType]
+	if !ok {
+		return fmt.Errorf("invalid content type %d", conType)
+	}
+	h[contentTypeStr] = v
+	return nil
 }
 
 func (h Headers) Get(fieldName string) (string, error) {
@@ -38,7 +50,7 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	} else if index == 0 {
 		return lineEndLen, true, nil
 	} else {
-		key, value, found := strings.Cut(string(data[:index]), ":")
+		key, value, found := strings.Cut(string(data[:index]), sep)
 		//fmt.Println(key, value)
 		if !found {
 			return 0, false, fmt.Errorf("no field-name:field-value pair found")
@@ -78,13 +90,22 @@ func validFieldName(fieldName string) bool {
 	return true
 }
 
-const validRunes = "!#$%&'*+-.^_`|~"
+const (
+	validRunes     = "!#$%&'*+-.^_`|~"
+	contentTypeStr = "Content-Type"
+	textPlainStr   = "text/plain"
+	textHTMLStr    = "text/html"
+)
 
 var validRuneSet map[rune]struct{}
+var validContentTypes map[ContentType]string
 
 func init() {
 	validRuneSet = make(map[rune]struct{})
 	for _, r := range validRunes {
 		validRuneSet[r] = struct{}{}
 	}
+	validContentTypes = make(map[ContentType]string)
+	validContentTypes[ContentTypeTextPlain] = textPlainStr
+	validContentTypes[ContentTypeTextHTML] = textHTMLStr
 }
