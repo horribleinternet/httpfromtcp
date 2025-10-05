@@ -17,6 +17,7 @@ const (
 	sep                              = ":"
 	ContentTypeTextPlain ContentType = 0
 	ContentTypeTextHTML  ContentType = 1
+	ContentTypeVideo     ContentType = 2
 	trailerFieldName                 = "Trailer"
 )
 
@@ -111,6 +112,7 @@ const (
 	contentTypeStr = "Content-Type"
 	textPlainStr   = "text/plain"
 	textHTMLStr    = "text/html"
+	videoStr       = "video/mp4"
 )
 
 var validRuneSet map[rune]struct{}
@@ -124,4 +126,5 @@ func init() {
 	validContentTypes = make(map[ContentType]string)
 	validContentTypes[ContentTypeTextPlain] = textPlainStr
 	validContentTypes[ContentTypeTextHTML] = textHTMLStr
+	validContentTypes[ContentTypeVideo] = videoStr
 }

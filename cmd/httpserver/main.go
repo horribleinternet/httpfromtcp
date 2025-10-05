@@ -45,6 +45,8 @@ func testHandler(w *response.Writer, req *request.Request) *server.HandlerError 
 	case "/myproblem":
 		status = response.HTTPInternalServerError
 		n, err = buffer.Write([]byte(internalError))
+	case "/video":
+		return videoHandler(w, req)
 	default:
 		if strings.HasPrefix(req.RequestLine.RequestTarget, httpbinPrefix) {
 			return chunkHandler(w, req)
@@ -73,6 +75,19 @@ func testHandler(w *response.Writer, req *request.Request) *server.HandlerError 
 		//return &server.HandlerError{Status: response.HTTPInternalServerError, Message: err.Error()}
 		return nil
 	}
+	return nil
+}
+func videoHandler(w *response.Writer, req *request.Request) *server.HandlerError {
+	video, err := os.ReadFile("assets/vim.mp4")
+	if err != nil {
+		fmt.Printf("error reading video: %s", err.Error())
+		return nil
+	}
+	w.WriteStatusLine(response.HTTPOk)
+	header := response.GetDefaultHeaders(len(video))
+	header.SetContextType(headers.ContentTypeVideo)
+	w.WriteHeaders(header)
+	w.WriteBody(video)
 	return nil
 }
 
