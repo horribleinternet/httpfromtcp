@@ -17,6 +17,7 @@ const (
 	sep                              = ":"
 	ContentTypeTextPlain ContentType = 0
 	ContentTypeTextHTML  ContentType = 1
+	trailerFieldName                 = "Trailer"
 )
 
 var lineEndBytes = []byte(lineEndStr)
@@ -32,6 +33,21 @@ func (h Headers) SetContextType(conType ContentType) error {
 	}
 	h[contentTypeStr] = v
 	return nil
+}
+
+func (h Headers) AddHeader(fieldName, fieldValue string) {
+	h[fieldName] = fieldValue
+}
+
+func (h Headers) AddTrailers(trailerNames []string) {
+	if len(trailerNames) == 0 {
+		return
+	}
+	value := trailerNames[0]
+	for i := 1; i < len(trailerNames); i++ {
+		value += ", " + trailerNames[i]
+	}
+	h[trailerFieldName] = value
 }
 
 func (h Headers) Get(fieldName string) (string, error) {

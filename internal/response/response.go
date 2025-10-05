@@ -23,7 +23,8 @@ const (
 	writerStateStatusLine      writerState = 0
 	writerStateHeaders         writerState = 1
 	writerStateBody            writerState = 2
-	writerStateDone            writerState = 3
+	writerStateTrailers        writerState = 3
+	writerStateDone            writerState = 4
 )
 
 type Writer struct {
@@ -52,7 +53,9 @@ func (w *Writer) WriteStatusLine(statusCode StatusCode) error {
 
 func GetDefaultHeaders(contentLen int) headers.Headers {
 	header := make(headers.Headers)
-	header["Content-Length"] = fmt.Sprintf("%d", contentLen)
+	if contentLen >= 0 {
+		header["Content-Length"] = fmt.Sprintf("%d", contentLen)
+	}
 	header["Connection"] = "close"
 	header["Content-Type"] = "text/plain"
 	return header
@@ -74,6 +77,7 @@ func (w *Writer) WriteHeaders(headers headers.Headers) error {
 	} else if w.state > writerStateHeaders {
 		return fmt.Errorf("calling WriteHeaders more than once")
 	}
+	//fmt.Println("no ", string(formatHeaders(headers)))
 	_, err := w.out.Write(formatHeaders(headers))
 	if err == nil {
 		w.state = writerStateBody
@@ -89,12 +93,17 @@ func (w *Writer) WriteBody(p []byte) (int, error) {
 	}
 	n, err := w.out.Write(p)
 	if err == nil {
-		w.state = writerStateDone
+		w.state = writerStateTrailers
 	}
 	return n, err
 }
 
 func (w *Writer) WriteChunkedBody(p []byte) (int, error) {
+	if w.state < writerStateBody {
+		return 0, fmt.Errorf("calling WriteBody before writing preceeding sections")
+	} else if w.state > writerStateBody {
+		return 0, fmt.Errorf("calling WriteBody more than once")
+	}
 	lenStr := fmt.Sprintf("%x%s", len(p), headerLineEnd)
 	n, err := w.out.Write([]byte(lenStr))
 	if err != nil {
@@ -113,12 +122,34 @@ func (w *Writer) WriteChunkedBody(p []byte) (int, error) {
 }
 
 func (w *Writer) WriteChunkedBodyDone() (int, error) {
-	str := fmt.Sprintf("0%s%s", headerLineEnd, headerLineEnd)
+	if w.state < writerStateBody {
+		return 0, fmt.Errorf("calling WriteBody before writing preceeding sections")
+	} else if w.state > writerStateBody {
+		return 0, fmt.Errorf("calling WriteBody more than once")
+	}
+	//str := fmt.Sprintf("0%s%s", headerLineEnd, headerLineEnd)
+	str := fmt.Sprintf("0%s", headerLineEnd)
 	n, err := w.out.Write([]byte(str))
 	if err != nil {
 		return 0, err
 	}
+	w.state = writerStateTrailers
 	return n, nil
+}
+
+func (w *Writer) WriteTrailers(headers headers.Headers) error {
+	if w.state < writerStateTrailers {
+		return fmt.Errorf("calling WriteHeaders before writing body")
+	} else if w.state > writerStateTrailers {
+		return fmt.Errorf("calling WriteHeaders more than once")
+	}
+	//fmt.Println("no ", string(formatHeaders(headers)))
+	_, err := w.out.Write(formatHeaders(headers))
+	if err == nil {
+		w.state = writerStateDone
+	}
+	//w.out.Write([]byte("\r\n"))
+	return err
 }
 
 var hTTPStatuses map[StatusCode]string
