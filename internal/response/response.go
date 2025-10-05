@@ -94,6 +94,33 @@ func (w *Writer) WriteBody(p []byte) (int, error) {
 	return n, err
 }
 
+func (w *Writer) WriteChunkedBody(p []byte) (int, error) {
+	lenStr := fmt.Sprintf("%x%s", len(p), headerLineEnd)
+	n, err := w.out.Write([]byte(lenStr))
+	if err != nil {
+		return 0, err
+	}
+	m, err := w.out.Write(p)
+	if err != nil {
+		return n, err
+	}
+	n += m
+	m, err = w.out.Write([]byte(headerLineEnd))
+	if err != nil {
+		return n, err
+	}
+	return n + m, nil
+}
+
+func (w *Writer) WriteChunkedBodyDone() (int, error) {
+	str := fmt.Sprintf("0%s%s", headerLineEnd, headerLineEnd)
+	n, err := w.out.Write([]byte(str))
+	if err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+
 var hTTPStatuses map[StatusCode]string
 
 func init() {
