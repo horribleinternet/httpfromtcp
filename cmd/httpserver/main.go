@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
+	"fmt"
+	"httpfromtcp/internal/headers"
 	"httpfromtcp/internal/request"
 	"httpfromtcp/internal/response"
 	"httpfromtcp/internal/server"
-	"io"
 	"log"
 	"os"
 	"os/signal"
@@ -27,17 +29,43 @@ func main() {
 	log.Println("Server gracefully stopped")
 }
 
-func testHandler(w io.Writer, req *request.Request) *server.HandlerError {
+func testHandler(w *response.Writer, req *request.Request) *server.HandlerError {
 
+	var buffer bytes.Buffer
+	var err error
+	var n int
+	status := response.HTTPOk
 	switch req.RequestLine.RequestTarget {
 	case "/yourproblem":
-		return &server.HandlerError{Status: response.HTTPBadRequest, Message: badRequest}
+		status = response.HTTPBadRequest
+		n, err = buffer.Write([]byte(badRequest))
 	case "/myproblem":
-		return &server.HandlerError{Status: response.HTTPInternalServerError, Message: internalError}
+		status = response.HTTPInternalServerError
+		n, err = buffer.Write([]byte(internalError))
 	default:
-		w.Write([]byte(okRequest))
-		return nil
+		n, err = buffer.Write([]byte(okRequest))
 	}
+	if err != nil {
+		return &server.HandlerError{Status: response.HTTPInternalServerError, Message: err.Error()}
+	}
+	err = w.WriteStatusLine(status)
+	if err != nil {
+		fmt.Printf("Unable to write status line for target %s: %s\n", req.RequestLine.RequestTarget, err.Error())
+		return &server.HandlerError{Status: response.HTTPInternalServerError, Message: err.Error()}
+	}
+	header := response.GetDefaultHeaders(n)
+	header.SetContextType(headers.ContentTypeTextHTML)
+	err = w.WriteHeaders(header)
+	if err != nil {
+		fmt.Printf("Unable to write header for target %s: %s\n", req.RequestLine.RequestTarget, err.Error())
+		return &server.HandlerError{Status: response.HTTPInternalServerError, Message: err.Error()}
+	}
+	_, err = w.WriteBody(buffer.Bytes())
+	if err != nil {
+		fmt.Printf("Unable to write body for target %s: %s\n", req.RequestLine.RequestTarget, err.Error())
+		return &server.HandlerError{Status: response.HTTPInternalServerError, Message: err.Error()}
+	}
+	return nil
 }
 
 const (

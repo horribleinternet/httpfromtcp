@@ -1,12 +1,10 @@
 package server
 
 import (
-	"bytes"
 	"fmt"
 	"httpfromtcp/internal/headers"
 	"httpfromtcp/internal/request"
 	"httpfromtcp/internal/response"
-	"io"
 	"log"
 	"net"
 	"sync/atomic"
@@ -28,7 +26,7 @@ func (h HandlerError) isError() bool {
 
 var closed atomic.Bool
 
-type Handler func(w io.Writer, req *request.Request) *HandlerError
+type Handler func(w *response.Writer, req *request.Request) *HandlerError
 
 func Serve(port int, h Handler) (*Server, error) {
 	portStr := fmt.Sprintf(":%d", port)
@@ -70,25 +68,10 @@ func (s *Server) handle(conn net.Conn) {
 		hErr.WriteError(writer)
 		return
 	}
-	var buffer bytes.Buffer
-	handErr := s.handler(&buffer, req)
+	handErr := s.handler(writer, req)
 	if handErr != nil {
 		handErr.WriteError(writer)
 		return
-	}
-	err = writer.WriteStatusLine(response.HTTPOk)
-	if err != nil {
-		fmt.Println(err.Error())
-	}
-	header := response.GetDefaultHeaders(buffer.Len())
-	header.SetContextType(headers.ContentTypeTextHTML)
-	err = writer.WriteHeaders(header)
-	if err != nil {
-		fmt.Println(err.Error())
-	}
-	_, err = writer.WriteBody(buffer.Bytes())
-	if err != nil {
-		fmt.Println(err.Error())
 	}
 }
 
